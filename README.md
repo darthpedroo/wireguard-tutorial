@@ -244,4 +244,36 @@ export PATH="/home/<USER>/bin:/sbin:/usr/sbin:$PATH"
 ```
 
 ## Paso 6) Instalar WireGuard en docker
+[Fuente](https://wg-easy.github.io/wg-easy/latest/examples/tutorials/basic-installation/)
+[Wireguard Github](https://github.com/wg-easy/wg-easy)
+[Wireguard Config Tool](https://www.wireguardconfig.com/)
+[Configurar Wireguard Sin Proxy](https://github.com/wg-easy/wg-easy)
+
+Cargamos los siguientes módulos al Kernel:
+
+```bash
+modprobe wireguard
+modprobe ip6_tables
+modprobe iptable_nat
+```
+
+Vamos a usar un docker compose para levantar wireguard. 
+
+```bash
+mkdir -p services/wireguard
+mkdir -p /srv/wireguard
+cd services/wireguard
+docker compose up -d
+```
+
+Importante: 
+Vamos a configurar la web sin proxy. Entonces debemos poner en el environment la siguiente línea:
+
+```bash
+environment:
+    - INSECURE=true
+```
+
+Con esto, podemos acceder a **http://192.168.0.228:51821** y veremos una interfaz web para usar wireguard.
+Creamos un usuario con contraseña y ya vamos a poder manejar la configuración de nuestros usuarios.
 
