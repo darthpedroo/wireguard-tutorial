@@ -257,6 +257,18 @@ modprobe ip6_tables
 modprobe iptable_nat
 ```
 
+Para hacer que se carguen siempre al bootear la computadora:
+
+```bash
+sudo vi /etc/modules
+
+#Agregamos estos modulos al archivo:
+
+wireguard
+iptable_nat
+ip6_tables
+```
+
 Vamos a usar un docker compose para levantar wireguard. 
 
 ```bash
@@ -275,5 +287,186 @@ environment:
 ```
 
 Con esto, podemos acceder a **http://192.168.0.228:51821** y veremos una interfaz web para usar wireguard.
-Creamos un usuario con contraseña y ya vamos a poder manejar la configuración de nuestros usuarios.
+
+## Paso 7) Configuración de Wireguard.
+
+Primero, nos creamos un usuario local para luego poder acceder a la WebUI y manejar nuestras VPNs
+![Wireguard Login](images/WireguardSetup1.png)
+
+Luego, debemos poner un host y un port al que vamos a conectarnos.
+![Wireguard DNS](images/WireguardSetup2.png)
+
+Para tener un dominio, vamos a utilizar **DUCK DNS**
+
+![Duck Dns](images/duckdns.png)
+
+Una vez que terminamos el setup, nos va a aparecer una pantalla para crear clientes de VPN:
+
+![alt text](images/WireguardSetup3.png)
+
+Creamos un nuevo cliente
+
+Importante: Este cliente va a tener todos los puertos internos habilitados de nuestra computadora donde se encuentre wireguard , para restringir puertos tenemos que configurar reglas de firewall.
+
+![Wireguard Setup client](images/WireguardSetup4.png)
+
+## Paso 8) Conectarse a wireguard
+
+### Desde el Celular
+
+Descargamos algun cliente de wireguard, en mi caso voy a usar [WG Tunnel](https://github.com/wgtunnel/wgtunnel). Se puede encontrar el link en F-Droid o en su [página oficial](https://wgtunnel.com/download)
+
+Escaneamos el QR que nos aparece en la Intefax Web:
+
+![Wireguard Client QR](images/WireguardClientQR.png)
+
+[Capaz poner alguna foto extra]
+
+### Desde la computadora
+
+## Paso 9) Levantar servidor con Nginx.
+
+Vamos a levantar los archivos con Nginx. Para esto, necesitamos: 
+
+```bash
+mkdir -p services/web_server
+```
+Creamos la página principal con Flask:
+
+```python
+#main.py
+from flask import Flask, render_template_string
+import os
+
+app = Flask(__name__)
+@app.route("/")
+def index():
+    users = []
+    for username in os.listdir("/home"):
+        if os.path.isdir(f"/home/{username}/public_html"):
+            users.append(username)
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Servidor Web - VPN Alpine</title>
+      <style>
+        body { font-family: sans-serif; background-color:#1e1e1e; color:#f3f3f3; text-align:center; padding:2rem; }
+        h1 { color:#00bcd4; }
+        ul { list-style:none; padding:0; }
+        a { color:#80cbc4; text-decoration:none; font-size:1.2rem; }
+        a:hover { text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <h1>Bienvenido al File Server</h1>
+      <p>Usuarios disponibles:</p>
+      <ul>
+      {% for user in users %}
+        <li><a href="/~{{ user }}/">{{ user }}</a></li>
+      {% endfor %}
+      </ul>
+    </body>
+    </html>
+    """
+    return render_template_string(html, users=users)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
+```
+
+Creamos un Dockerfile para levantar la web de Flask:
+
+```Dockerfile
+FROM python:3.12-alpine
+
+WORKDIR /app
+
+COPY main.py .
+
+RUN pip install flask
+
+EXPOSE 5000
+
+CMD ["python", "main.py"]
+```
+
+Creamos el contenedor de Nginx con docker-compose:
+
+```yaml
+services:
+  web:
+    image: nginx:stable-alpine
+    container_name: nginx-web
+    restart: always
+    ports:
+      - "0.0.0.0:8080:80" 
+    volumes:
+      - /home:/home:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+  index_flask:
+    build: .
+    container_name: index_flask
+    restart: always
+    volumes:
+      - /home:/home:ro
+```
+
+Creamos la configuración de nginx:
+
+```conf
+events {}
+http {
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+         proxy_pass http://index_flask:5000/;
+        }
+
+        # Sirve el public_html de cada usuario
+        location ~ ^/~([^/]+)(/.*)?$ {
+            alias /home/$1/public_html$2;
+            autoindex on;
+            index index.html;
+        }
+
+        # Seguridad básica: bloquea acceso fuera de /home/*/public_html
+        location ~ ^/~([^/]+)/(\.\.|\.git|\.ssh) {
+            deny all;
+        }
+    }
+}
+```
+
+## Paso 10) Creamos un Nuevo usuario y subimos archivos
+
+Una vez que terminamos de crear el server, debemos crear un nuevo usuario y su public_html.
+
+```bash
+sudo adduser tool
+sudo mkdir -p /home/tool/public_html
+sudo chown -R tool:tool /home/tool/public_html
+su - tool
+```
+
+Una vez que nos logueamos con el usuario *tool*. Podemos agregar cualquier archivo.
+
+Algunos ejemplos:
+
+```bash
+echo "hola" >> hola.txt
+```
+
+```bash
+scp react\ taz.mp4 porky@192.168.0.228 /home/porky/public_html
+```
+
+Si accedemos a: **192.168.0.228:8080** veremos un Index con todos los usuarios posibles
+
+![Index File Server](images/IndexFileServer.png)
 
