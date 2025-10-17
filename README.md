@@ -89,6 +89,19 @@ apk update
 apk upgrade
 ```
 
+### Agregar repositorio community
+
+Agregamos al archivo /etc/apk/repositories
+
+```bash
+sudo vi /etc/apk/repositories
+# Agregamos esta línea
+#https://dl-cdn.alpinelinux.org/alpine/v3.20/community
+
+apk update
+apk upgrade
+```
+
 ### Instalar Sudo
 
 Para ejecutar comandos sin la necesidad de tener que usar su, vamos a:
@@ -159,17 +172,6 @@ Instalamos los prerequisitos
 apk add shadow-uidmap fuse-overlayfs iproute2 curl
 ```
 
-Agregamos al archivo /etc/apk/repositories
-
-```bash
-sudo vi /etc/apk/repositories
-# Agregamos esta línea
-#https://dl-cdn.alpinelinux.org/alpine/v3.20/community
-
-apk update
-apk upgrade
-```
-
 Habilitamos cgroups v2  
 
 ```bash
@@ -222,8 +224,9 @@ reload() {
     /bin/kill -s HUP \$MAINPID
     eend $?
 }
-```
 
+
+```
 Hacer el script ejecutable
 
 ```bash
@@ -240,14 +243,14 @@ vim .profile
 #Añadir
 export XDG_RUNTIME_DIR="$HOME/.docker/run"
 export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock
-export PATH="/home/<USER>/bin:/sbin:/usr/sbin:$PATH"
+export PATH="$HOME/bin:/sbin:/usr/sbin:$PATH"
 ```
 
 ## Paso 6) Instalar WireGuard en docker
-[Fuente](https://wg-easy.github.io/wg-easy/latest/examples/tutorials/basic-installation/)
-[Wireguard Github](https://github.com/wg-easy/wg-easy)
-[Wireguard Config Tool](https://www.wireguardconfig.com/)
-[Configurar Wireguard Sin Proxy](https://github.com/wg-easy/wg-easy)
+- [Fuente](https://wg-easy.github.io/wg-easy/latest/examples/tutorials/basic-installation/)
+- [Wireguard Github](https://github.com/wg-easy/wg-easy)
+- [Wireguard Config Tool](https://www.wireguardconfig.com/)
+- [Configurar Wireguard Sin Proxy](https://github.com/wg-easy/wg-easy)
 
 Cargamos los siguientes módulos al Kernel:
 
@@ -257,13 +260,14 @@ modprobe ip6_tables
 modprobe iptable_nat
 ```
 
-Para hacer que se carguen siempre al bootear la computadora:
+Para hacer que se carguen siempre al bootear la computadora: 
+
+NOTA
+- Esto no esta funcionando...
 
 ```bash
 sudo vi /etc/modules
-
 #Agregamos estos modulos al archivo:
-
 wireguard
 iptable_nat
 ip6_tables
@@ -275,6 +279,8 @@ Vamos a usar un docker compose para levantar wireguard.
 mkdir -p services/wireguard
 mkdir -p /srv/wireguard
 cd services/wireguard
+sudo curl -o docker-compose.yml https://raw.githubusercontent.com/wg-easy/wg-easy/master/docker-compose.yml
+
 docker compose up -d
 ```
 
@@ -284,6 +290,14 @@ Vamos a configurar la web sin proxy. Entonces debemos poner en el environment la
 ```bash
 environment:
     - INSECURE=true
+```
+
+Cambiamos el puerto a 
+
+```bash
+ports:
+      - "51829:51829/udp"
+      - "51821:51821/tcp"
 ```
 
 Con esto, podemos acceder a **http://192.168.0.228:51821** y veremos una interfaz web para usar wireguard.
@@ -393,7 +407,7 @@ EXPOSE 5000
 CMD ["python", "main.py"]
 ```
 
-Creamos el contenedor de Nginx con docker-compose:
+Creamos el contenedor de Nginx con docker-compose.yml:
 
 ```yaml
 services:
@@ -406,7 +420,6 @@ services:
     volumes:
       - /home:/home:ro
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./index.html:/usr/share/nginx/html/index.html:ro
   index_flask:
     build: .
     container_name: index_flask
@@ -415,7 +428,7 @@ services:
       - /home:/home:ro
 ```
 
-Creamos la configuración de nginx:
+Creamos la configuración de nginx en nginx.conf:
 
 ```conf
 events {}
@@ -441,6 +454,10 @@ http {
         }
     }
 }
+```
+Levantamos el servidor con:
+```bash
+docker compose up -d
 ```
 
 ## Paso 10) Creamos un Nuevo usuario y subimos archivos
