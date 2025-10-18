@@ -300,9 +300,6 @@ modprobe iptable_nat
 
 Para hacer que se carguen siempre al bootear la computadora: 
 
-NOTA
-- Esto no esta funcionando...
-
 ```bash
 #Ejecutar con user root
 su -
