@@ -75,7 +75,9 @@ Apagamos la máquina Virtual y desde la interfaz visual seleccionamos la siguien
 
 Vm -> Configuración -> Almacenamiento -> Controller: IDE -> Remove Attachement. 
 
-[TODO : Agregar una foto de esto]
+![alt text](images/Remove%20Attachement.png)
+
+Hacemos click derecho y ponemos remove attachement.
 
 Esto hará que la VM no boote desde la iso, sino que use el almacenamiento que le configuramos
 
@@ -85,8 +87,11 @@ Alpine cuenta con su propio package manager llamado [apk](https://wiki.alpinelin
 Para actualizar los paquetes debemos ejecutar los siguientes comandos: 
 
 ```bash
+# Correr con root
+su -
 apk update
 apk upgrade
+su - porky
 ```
 
 ### Agregar repositorio community
@@ -94,7 +99,9 @@ apk upgrade
 Agregamos al archivo /etc/apk/repositories
 
 ```bash
-sudo vi /etc/apk/repositories
+# Correr con root
+su -
+vi /etc/apk/repositories
 # Agregamos esta línea
 #https://dl-cdn.alpinelinux.org/alpine/v3.20/community
 
@@ -110,12 +117,14 @@ Para ejecutar comandos sin la necesidad de tener que usar su, vamos a:
 - Modificar el archivo sudoers para que todos los miembros de wheel puedan ejecutar sudo
 
 ```bash
+# Correr con root
 su
 apk add sudo
 adduser porky wheel
 visudo
 ## Uncomment to allow members of group wheel to execute any command     
 %wheel ALL=(ALL:ALL) ALL
+su - porky
 ```
 
 De ahora en más, no necesitaremos ejecutar los comandos como root, podemos ejecutarlos con sudo.
@@ -157,11 +166,13 @@ Vamos a ejecutar wireguard y todos nuestros servicios en docker, para facilitar 
 Primero, debemos habilitar los repositorios de la comunidad puesto que el paquete de docker se encuentra allí. 
 
 ```bash
-setup-apkrepos -c
-apk add docker docker-cli-compose
-rc-update add docker default
-service docker start
-addgroup ${USER} docker
+# Ejecutar con user porky
+su - porky
+sudo setup-apkrepos -c
+sudo apk add docker docker-cli-compose
+sudo rc-update add docker default
+sudo service docker start
+sudo addgroup ${USER} docker
 ```
 
 Ejecutar docker sin root ni sudo: 
@@ -169,45 +180,68 @@ Ejecutar docker sin root ni sudo:
 Instalamos los prerequisitos
 
 ```bash
-apk add shadow-uidmap fuse-overlayfs iproute2 curl
+# Ejecutar con user porky
+sudo apk add shadow-uidmap fuse-overlayfs iproute2 curl
 ```
 
 Habilitamos cgroups v2  
 
 ```bash
-vi /etc/rc.conf 
+# Ejecutar con user porky
+su - porky
+sudo vi /etc/rc.conf 
 # Descomentamos esta línea
 rc_cgroup_mode="unified"
-#
-rc-update add cgroups && rc-service cgroups start
+
+sudo rc-update add cgroups && rc-service cgroups start
 ```
 
 Instalamos docker rootles extas
 
 ```bash
-apk add docker-rootless-extras
+# Ejecutar con user porky
+su - porky
+sudo apk add docker-rootless-extras
 ```
 
 Habilitamos el modulo iptables
 
 ```bash
+#Ejecutamos con user root
 su
 echo "ip_tables" >> /etc/modules
 modprobe ip_tables
 ```
 
+Detenemos docker rootful
+```bash
+sudo service docker stop
+sudo rc-update del docker
+```
+
 Instalamos docker rootless:
 
 ```bash
-sudo sh -c 'echo "porky:100000:65536" >> /etc/subuid'
-sudo sh -c 'echo "porky:100000:65536" >> /etc/subgid'
+#Ejecutamos con user root
+su - 
+sh -c 'echo "porky:100000:65536" >> /etc/subuid'
+sh -c 'echo "porky:100000:65536" >> /etc/subgid'
+
+#Ejecutamos con user porky
+su - porky
 curl -fsSL https://get.docker.com/rootless | sh
+
+# probamos que funciona docker sin root
+docker info # -> Deberia mostrar el estado de docker.
 ```
+
 
 Crear Init script en /etc/init.d/docker-rootless
 
 ```bash
-vi /etc/init.d/docker-rootless
+# Ejecutar con user porky
+su - porky
+sudo vi /etc/init.d/docker-rootless 
 
 #!/sbin/openrc-run
 
@@ -230,9 +264,11 @@ reload() {
 Hacer el script ejecutable
 
 ```bash
-chmod +x /etc/init.d/docker-rootless
-rc-update add docker-rootless
-rc-service docker-rootless start
+# Ejecutar con porky
+su - porky
+sudo chmod +x /etc/init.d/docker-rootless
+sudo rc-update add docker-rootless
+sudo rc-service docker-rootless start
 ```
 
 Crear archivo .profile
@@ -255,6 +291,8 @@ export PATH="$HOME/bin:/sbin:/usr/sbin:$PATH"
 Cargamos los siguientes módulos al Kernel:
 
 ```bash
+#Ejecutar con user root
+su - 
 modprobe wireguard
 modprobe ip6_tables
 modprobe iptable_nat
@@ -266,7 +304,9 @@ NOTA
 - Esto no esta funcionando...
 
 ```bash
-sudo vi /etc/modules
+#Ejecutar con user root
+su -
+vi /etc/modules
 #Agregamos estos modulos al archivo:
 wireguard
 iptable_nat
@@ -276,12 +316,13 @@ ip6_tables
 Vamos a usar un docker compose para levantar wireguard. 
 
 ```bash
+#Ejecutar con user porky
+su - porky
 mkdir -p services/wireguard
-mkdir -p /srv/wireguard
+sudo mkdir -p /srv/wireguard
 cd services/wireguard
 sudo curl -o docker-compose.yml https://raw.githubusercontent.com/wg-easy/wg-easy/master/docker-compose.yml
 
-docker compose up -d
 ```
 
 Importante: 
@@ -299,6 +340,10 @@ ports:
       - "51829:51829/udp"
       - "51821:51821/tcp"
 ```
+
+```bash
+docker compose up -d
+````
 
 Con esto, podemos acceder a **http://192.168.0.228:51821** y veremos una interfaz web para usar wireguard.
 
@@ -487,3 +532,72 @@ Si accedemos a: **192.168.0.228:8080** veremos un Index con todos los usuarios p
 
 ![Index File Server](images/IndexFileServer.png)
 
+## Paso 11) Hacemos un backup con rsync.
+
+Instalamos rsync
+```bash
+#Con usuario root
+su
+cd /home
+apk add rsync
+```
+
+Creamos un script de bash para automatizar esta tarea:
+
+```bash
+# Ejecutando con user root
+su -
+cd /usr/local/bin
+
+vim backup_users.sh
+
+#!/bin/sh
+REMOTE_USER="porky"
+REMOTE_HOST="192.168.0.15"
+REMOTE_PATH="/home/porky/darthpedro/backups/public_html"
+LOG_FILE="/var/log/backup_users.log"
+
+echo "Backup iniciado: $(date)" >> "$LOG_FILE"
+
+for USER_DIR in /home/*; do
+    [ -d "$USER_DIR" ] || continue
+
+    USERNAME=$(basename "$USER_DIR")
+    SRC_PATH="$USER_DIR/public_html"
+
+    if [ -d "$SRC_PATH" ]; then
+        echo "-> Haciendo backup de $USERNAME..." | tee -a "$LOG_FILE"
+
+        rsync -az --delete "$SRC_PATH/" \
+            "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/${USERNAME}/" \
+            >> "$LOG_FILE" 2>&1
+
+        if [ $? -eq 0 ]; then
+            echo "Backup de $USERNAME completado." | tee -a "$LOG_FILE"
+        else
+            echo "Error al respaldar $USERNAME." | tee -a "$LOG_FILE"
+        fi
+    fi
+done
+
+echo "Backup finalizado: $(date)" >> "$LOG_FILE"
+```
+
+Hacemos un cron para que se ejecute cada 5 minutos el backup
+
+```bash
+*/5 * * * * /usr/local/bin/backup_users.sh >> /home/porky/backup_u
+```
+
+SSH key pair
+
+Para que no nos pida la contraseña cada vez que queremos hacer el backup y para que el cron corra automáticamente, haremos la conexión ssh mediante claves públicas y privadas
+
+```bash
+#En alpine, como root 
+su - 
+ssh-keygen -t ed25519 -C "backup_vm_key"
+ssh-copy-id porky@192.168.0.15
+```
+
+Con esto ya tendriamos la conexión ssh usando una clave
