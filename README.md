@@ -175,7 +175,9 @@ sudo service docker start
 sudo addgroup ${USER} docker
 ```
 
-Ejecutar docker sin root ni sudo: 
+Ejecutar docker rootless: 
+
+Ejecutar docker de esta manera evita que nos expongamos a vulnerabilidades. Si hay una vulnerabilidad en Docker o en algun servicio dentro que ejecutamos con Docker, este no podrá acceder a nuestra computadora como root.
 
 Instalamos los prerequisitos
 
