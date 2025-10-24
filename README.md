@@ -17,7 +17,7 @@ Para crear máquinas virtuales, necesitamos un Hipervisor, para este proyecto vo
 
 ## Paso 2) Descargar imagen de Alpine Linux
 
-En la [Página oficial de Alpie Linux](https://www.alpinelinux.org/downloads/) encontramos las Imágenes de esta distribución.
+En la [Página oficial de Alpine Linux](https://www.alpinelinux.org/downloads/) encontramos las Imágenes de esta distribución.
 
 Para nuestro caso de uso, usaramos la versión **x86_64** de la sección **"VIRTUAL"**.
 
