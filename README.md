@@ -41,7 +41,7 @@ Creamos la máquina virtual con las siguientes especificaciones
 ### Iniciar Sesión
 Si no configuramos ninguna credencial de inicio de sesión, se nos darán las siguientes credenciales como default
 
-**user**: root (Sin passwword)
+**user**: root (Sin password)
 
 
 ### Setup-Alpine
@@ -132,7 +132,7 @@ De ahora en más, no necesitaremos ejecutar los comandos como root, podemos ejec
 ### Conectar mediante SSH
 [Fuente](https://wiki.alpinelinux.org/wiki/Setting_up_a_SSH_server)
 
-Como pueden haber notado, es bastante incomdo ejecutar comandos desde la interfaz Visual de VirtualBox. Por eso, vamos a conectarnos mediante SSH a nuestra máquina virtual de alpine. 
+Como pueden haber notado, es bastante incómdo ejecutar comandos desde la interfaz Visual de VirtualBox. Por eso, vamos a conectarnos mediante SSH a nuestra máquina virtual de alpine. 
 
 El paquete openssh ya lo instalamos en **setup-alpine**.
 
@@ -374,13 +374,9 @@ Importante: Este cliente va a tener todos los puertos internos habilitados de nu
 
 Descargamos algun cliente de wireguard, en mi caso voy a usar [WG Tunnel](https://github.com/wgtunnel/wgtunnel). Se puede encontrar el link en F-Droid o en su [página oficial](https://wgtunnel.com/download)
 
-Escaneamos el QR que nos aparece en la Intefax Web:
+Escaneamos el QR que nos aparece en la Interfaz Web:
 
 ![Wireguard Client QR](images/WireguardClientQR.png)
-
-[Capaz poner alguna foto extra]
-
-### Desde la computadora
 
 ## Paso 9) Levantar servidor con Nginx.
 
@@ -531,7 +527,69 @@ Si accedemos a: **192.168.0.228:8080** veremos un Index con todos los usuarios p
 
 ![Index File Server](images/IndexFileServer.png)
 
-## Paso 11) Hacemos un backup con rsync.
+## Paso 11) Configurar autenticación para los usuarios (Opcional)
+
+Si queremos hacer que los usuarios tengan que poner una contraseña para autenticarse al acceder a su public_html,debemos crear un archivo .htpasswd en el mismo directorio public_html
+
+```bash
+# Ejecutar con user porky
+sudo apk add apache2-utils
+htpasswd -c /home/porky/public_html/.htpasswd porky # Nos va a pedir la contraseña para el user porky
+```
+
+Cada usuario va a tener que crearse su propia contraseña, puede tambien no poner niguna contraseña y que todos puedan acceder a sus archivos. El comando generico sería:
+
+```bash
+# Ejecutar como <user>
+htpasswd -c /home/<user>/public_html/.htpasswd <user>
+```
+
+El archivo de nginx nos quedaria así:
+
+```conf
+events {}
+http {
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+         proxy_pass http://index_flask:5000/;
+        }
+
+        # Sirve el public_html de cada usuario
+        location ~ ^/~([^/]+)(/.*)?$ {
+            alias /home/$1/public_html$2;
+            autoindex on;
+            index index.html;
+
+            auth_basic "Logueate para acceder";
+            auth_basic_user_file /home/$1/public_html/.htpasswd;
+        }
+
+        # Seguridad básica: bloquea acceso fuera de /home/*/public_html
+        location ~ ^/~([^/]+)/(\.\.|\.git|\.ssh) {
+            deny all;
+        }
+    }
+}
+```
+
+Ahora, antes de entrar a cada usuario nos va a pedir el usuario y contraseña:
+
+![LogIn](images/LogIn.png)
+
+Y si queremos acceder a otro usuario nos va a tirar un error 403 forbidden
+
+![403 Forbidden](images/403_Forbidden.png)
+
+Cabe aclarar que este método de autenticación funciona, pero tiene varios problemas con este método para autenticar:
+
+- No podemos desloguearnos, tenemos que reiniciar el browser para que se nos cierre sesión
+- No podedmos acceder a multiples usuarios en simultaneo sin desloguearnos
+- Todos los usuarios **deben** tener contraseña, porque aunque no tengas contraseña te pide una y no es posible poner un caracter vacio como contraseña.  
+
+## Paso 12) Hacemos un backup con rsync.
 
 Instalamos rsync
 ```bash
